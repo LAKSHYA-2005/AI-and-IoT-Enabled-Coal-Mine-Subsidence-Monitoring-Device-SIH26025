@@ -106,7 +106,11 @@ struct Readings {
 
 float prev_crack = NAN, prev_disp = NAN, prev_vel = NAN, prev_tilt_mag = NAN;
 unsigned long prev_t = 0;
-float cum_crack = 0, cum_disp = 0;
+
+// baselines captured on the very first valid reading - cumulative values are
+// defined as net movement away from this baseline, NOT sum of absolute deltas
+float baseline_crack = NAN, baseline_disp = NAN;
+bool  baselineSet = false;
 
 #define VIB_SAMPLES 50
 float vibBuf[VIB_SAMPLES];
@@ -119,8 +123,11 @@ const unsigned long PAGE_INTERVAL_MS = 3000;
 
 bool mpuOK = false, dsOK = false, loraOK = false, oledOK = false;
 unsigned long lastTxTime = 0;
-int lastRSSI = 0;
 uint32_t packetCounter = 0;
+// NOTE: RSSI is deliberately NOT tracked here - a transmitting node never
+// receives a packet, so a node-side "RSSI" would always read 0/stale.
+// RSSI/SNR belong on the command centre, which actually calls
+// LoRa.packetRssi() / LoRa.packetSnr() on receive.
 
 // ================= MPU6050 BARE I2C DRIVER (no library) =================
 void mpuWrite(uint8_t reg, uint8_t val) {
@@ -215,8 +222,14 @@ void sampleVibration(float &rms, float &peak, float &domFreqHz) {
 
 // ---------------- ADC -> mm placeholders ----------------
 // TODO: replace with real calibration curves from your mechanical rig.
-float adcToCrackMM(int raw)       { return map(raw, 0, 4095, 0, 50); }
-float adcToDisplacementMM(int raw){ return map(raw, 0, 4095, 0, 100); }
+// Using floating-point math here (NOT Arduino's integer map()) so the
+// output isn't quantized to ~1 mm steps.
+float adcToCrackMM(int raw) {
+  return (raw / 4095.0f) * 50.0f;     // 0-50 mm demo range
+}
+float adcToDisplacementMM(int raw) {
+  return (raw / 4095.0f) * 100.0f;    // 0-100 mm demo range
+}
 
 // ================= OLED PAGES =================
 void drawHeader(const char* title) {
@@ -260,7 +273,7 @@ void page4_system_status() {
   oled.printf("MPU  : %s\n", mpuOK ? "OK" : "FAIL");
   oled.printf("DS18 : %s\n", dsOK ? "OK" : "FAIL");
   oled.printf("LoRa : %s\n", loraOK ? "OK" : "FAIL");
-  oled.printf("TX#%lu RSSI:%d\n", packetCounter, lastRSSI);
+  oled.printf("TX count: %lu\n", packetCounter);
   oled.printf("LastTX:%lus ago\n", (millis() - lastTxTime) / 1000);
 }
 
@@ -280,7 +293,11 @@ void showPage(uint8_t p) {
 // CSV format: NODE_ID,millis,crack,vert,tiltx,tilty,vibrms,vibpeak,domfreq,temp,depth,seam,extraction
 void sendPacket() {
   if (!loraOK) return;
-  LoRa.beginPacket();
+
+  if (!LoRa.beginPacket()) {
+    Serial.println("[LoRa] beginPacket() failed - radio busy/not ready, skipping this TX.");
+    return;
+  }
   LoRa.print(NODE_ID); LoRa.print(",");
   LoRa.print(millis()); LoRa.print(",");
   LoRa.print(R.crack_width_mm, 3); LoRa.print(",");
@@ -294,10 +311,14 @@ void sendPacket() {
   LoRa.print(mining_depth_m, 3); LoRa.print(",");
   LoRa.print(seam_thickness_m, 3); LoRa.print(",");
   LoRa.print(extraction_ratio, 4);
-  LoRa.endPacket();
-  packetCounter++;
-  lastTxTime = millis();
-  Serial.println("[LoRa] Test packet sent.");
+
+  if (LoRa.endPacket()) {
+    packetCounter++;
+    lastTxTime = millis();
+    Serial.println("[LoRa] Test packet sent OK.");
+  } else {
+    Serial.println("[LoRa] endPacket() reported failure - packet may not have been sent.");
+  }
 }
 
 // ================= SETUP =================
@@ -362,20 +383,33 @@ void loop() {
   // 3) DS18B20 temperature
   if (dsOK) {
     ds18b20.requestTemperatures();
-    R.temperature_C = ds18b20.getTempCByIndex(0);
+    float t = ds18b20.getTempCByIndex(0);
+    if (t == DEVICE_DISCONNECTED_C) {
+      Serial.println("[DS18B20] Sensor disconnected mid-run - flagging temperature invalid.");
+      R.temperature_C = NAN;
+      dsOK = false;   // downgrade status so OLED/SYS STATUS page reflects it
+    } else {
+      R.temperature_C = t;
+    }
   } else {
     R.temperature_C = NAN;
+  }
+
+  // capture baseline once, from the first valid reading
+  if (!baselineSet) {
+    baseline_crack = R.crack_width_mm;
+    baseline_disp  = R.vertical_displacement_mm;
+    baselineSet = true;
+    Serial.printf("[BASELINE] crack=%.3f mm  disp=%.3f mm\n", baseline_crack, baseline_disp);
   }
 
   // 4) derived rates (extrapolated to "per day" units from this short interval —
   //    for a real deployment these should be computed over hours/days, not seconds)
   if (!isnan(prev_crack)) {
     R.crack_growth_rate_mm_day = (R.crack_width_mm - prev_crack) / dt_days;
-    cum_crack += fabs(R.crack_width_mm - prev_crack);
   }
   if (!isnan(prev_disp)) {
     R.vertical_displacement_velocity_mm_day = (R.vertical_displacement_mm - prev_disp) / dt_days;
-    cum_disp += fabs(R.vertical_displacement_mm - prev_disp);
     if (!isnan(prev_vel)) {
       R.displacement_acceleration_mm_day2 =
         (R.vertical_displacement_velocity_mm_day - prev_vel) / dt_days;
@@ -386,8 +420,12 @@ void loop() {
   if (!isnan(prev_tilt_mag)) {
     R.tilt_rate_deg_day = (tiltMag - prev_tilt_mag) / dt_days;
   }
-  R.cumulative_crack_growth_mm = cum_crack;
-  R.cumulative_subsidence_mm   = cum_disp;
+
+  // cumulative values = net movement AWAY from baseline, not sum of absolute
+  // sample-to-sample deltas (a value that returns to baseline should not
+  // keep accumulating "growth")
+  R.cumulative_crack_growth_mm = max(0.0f, R.crack_width_mm - baseline_crack);
+  R.cumulative_subsidence_mm   = max(0.0f, R.vertical_displacement_mm - baseline_disp);
 
   prev_crack    = R.crack_width_mm;
   prev_disp     = R.vertical_displacement_mm;
@@ -431,3 +469,4 @@ void loop() {
 
   delay(500);
 }
+
