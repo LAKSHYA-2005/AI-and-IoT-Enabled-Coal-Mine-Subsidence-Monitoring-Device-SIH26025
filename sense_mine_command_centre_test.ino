@@ -104,6 +104,9 @@ int getNodeIndex(int id) {
 
 // CSV format from node:
 // NODE_ID,millis,crack,vert,tiltx,tilty,vibrms,vibpeak,domfreq,temp,depth,seam,extraction
+// That's 13 comma-separated fields total - anything else is a corrupt/partial packet.
+#define EXPECTED_FIELD_COUNT 13
+
 void parsePacket(String pkt, int rssi, float snr) {
   int idx = -1;
   float vals[11];
@@ -118,7 +121,15 @@ void parsePacket(String pkt, int rssi, float snr) {
       start = i + 1;
     }
   }
-  if (idx < 0) { Serial.println("[LoRa] Malformed packet, discarded."); return; }
+
+  // Reject anything that doesn't have exactly the expected field count -
+  // a truncated/corrupted LoRa packet must NOT be allowed to partially
+  // overwrite a node's record with stale/uninitialized values.
+  if (idx < 0 || fieldCount != EXPECTED_FIELD_COUNT) {
+    Serial.printf("[LoRa] Malformed packet, discarded (fields=%d, expected=%d).\n",
+                  fieldCount, EXPECTED_FIELD_COUNT);
+    return;
+  }
 
   int ni = getNodeIndex(idx);
   if (ni < 0) return;
