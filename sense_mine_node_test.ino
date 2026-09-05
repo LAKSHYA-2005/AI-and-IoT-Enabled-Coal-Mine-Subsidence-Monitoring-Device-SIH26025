@@ -362,10 +362,6 @@ void setup() {
 
 // ================= LOOP =================
 void loop() {
-  unsigned long now = millis();
-  float dt_days = (now - prev_t) / 1000.0f / 86400.0f;  // elapsed time as a fraction of a day
-  if (dt_days < 1e-9) dt_days = 1e-9;
-
   // 1) displacement potentiometers
   int rawCrack = analogRead(PIN_POT_CRACK);
   int rawVert  = analogRead(PIN_POT_VERT);
@@ -377,12 +373,17 @@ void loop() {
   if (mpuOK && mpuRead(d)) {
     R.tilt_x_deg = d.roll;
     R.tilt_y_deg = d.pitch;
+  } else {
+    // Don't let a failed read silently keep showing the last-good tilt value -
+    // an unreadable sensor should show up as invalid data, not stale data.
+    R.tilt_x_deg = NAN;
+    R.tilt_y_deg = NAN;
   }
-  sampleVibration(R.vibration_rms_g, R.vibration_peak_g, R.dominant_frequency_hz);
+  sampleVibration(R.vibration_rms_g, R.vibration_peak_g, R.dominant_frequency_hz);  // this alone takes ~200ms
 
   // 3) DS18B20 temperature
   if (dsOK) {
-    ds18b20.requestTemperatures();
+    ds18b20.requestTemperatures();   // this also takes real time (conversion delay)
     float t = ds18b20.getTempCByIndex(0);
     if (t == DEVICE_DISCONNECTED_C) {
       Serial.println("[DS18B20] Sensor disconnected mid-run - flagging temperature invalid.");
@@ -394,6 +395,14 @@ void loop() {
   } else {
     R.temperature_C = NAN;
   }
+
+  // Take the timing snapshot HERE, only after every blocking sensor read is
+  // done (vibration sampling + DS18B20 conversion both take real, non-trivial
+  // time). Using a timestamp from the top of loop() would understate the
+  // true elapsed interval and skew every *_day rate below.
+  unsigned long sampleTime = millis();
+  float dt_days = (sampleTime - prev_t) / 1000.0f / 86400.0f;  // elapsed time as a fraction of a day
+  if (dt_days < 1e-9) dt_days = 1e-9;
 
   // capture baseline once, from the first valid reading
   if (!baselineSet) {
@@ -430,7 +439,7 @@ void loop() {
   prev_crack    = R.crack_width_mm;
   prev_disp     = R.vertical_displacement_mm;
   prev_tilt_mag = tiltMag;
-  prev_t        = now;
+  prev_t        = sampleTime;   // use the post-acquisition timestamp, not loop-start time
 
   // 5) full serial debug dump
   Serial.println("---- NODE READING ----");
@@ -458,15 +467,16 @@ void loop() {
   Serial.println("spatial_displacement_gradient / spatial_coherence: computed at Command Centre from multiple nodes, not by a single node.");
 
   // 6) OLED circular page cycling
-  if (oledOK && now - lastPageSwitch > PAGE_INTERVAL_MS) {
+  if (oledOK && sampleTime - lastPageSwitch > PAGE_INTERVAL_MS) {
     currentPage = (currentPage + 1) % NUM_PAGES;   // wraps back to page 0 -> circular
-    lastPageSwitch = now;
+    lastPageSwitch = sampleTime;
   }
   if (oledOK) showPage(currentPage);
 
   // 7) periodic LoRa test transmission
-  if (now - lastTxTime > 5000) sendPacket();
+  if (sampleTime - lastTxTime > 5000) sendPacket();
 
   delay(500);
 }
+
 
