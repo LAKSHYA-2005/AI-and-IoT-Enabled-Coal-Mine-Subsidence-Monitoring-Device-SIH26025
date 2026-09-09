@@ -11,7 +11,7 @@ SENSE-MINE is a low-cost, six-node distributed surface-deformation sensing netwo
 
 The system does **not** claim to replace conventional surveying, GNSS, or InSAR. It is positioned as a **dense, continuous, local surface-sensing layer** that complements them — providing high-frequency local deformation observations and immediate local alerts between periodic survey campaigns.
 
-📄 Full technical detail lives in [`docs/SENSE-MINE_Detailed_Project_Report.docx`](docs/SENSE-MINE_Detailed_Project_Report.docx) — this README is the quick-reference summary.
+📄 Full technical detail lives in [`docs/SENSE-MINE_Detailed_Project_Report.docx`](SENSE-MINE_Detailed_Project_Report.pdf) — this README is the quick-reference summary.
 
 ---
 
