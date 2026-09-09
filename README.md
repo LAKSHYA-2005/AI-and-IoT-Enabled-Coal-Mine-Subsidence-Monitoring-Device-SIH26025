@@ -5,6 +5,9 @@
 Smart India Hackathon 2026 — Problem Statement **SIH26025**
 Organization: Ministry of Coal | Department: Coal India Limited
 
+<img width="1536" height="1024" alt="sense-mine png" src="https://github.com/user-attachments/assets/3461f1cd-4020-4db0-94a9-2c0591b4005c" />
+
+
 ## Overview
 
 SENSE-MINE is a low-cost, six-node distributed surface-deformation sensing network deployed over an underground coal panel. Nodes communicate over a **self-healing multi-hop LoRa mesh** to a command centre, which runs local safety logic and an independent GSM alert path, while a connected operator PC hosts the AI pipeline, database, and both an offline and online dashboard.
