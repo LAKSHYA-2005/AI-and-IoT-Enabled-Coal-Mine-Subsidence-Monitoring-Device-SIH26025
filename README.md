@@ -25,7 +25,7 @@ The PS calls for: continuous tilt/relative-distance/crack/vibration monitoring, 
 
 ## Key Features
 
-- 🛰️ **6-node self-healing LoRa mesh** (433 MHz) with neighbour discovery, routing, ACK/retry, and automatic route recovery on node failure.
+- 🛰️ **multi-nodes self-healing LoRa mesh** (433 MHz) with neighbour discovery, routing, ACK/retry, and automatic route recovery on node failure.
 - 📏 **Dual displacement sensing per node** — crack opening + vertical displacement, via individually calibrated low-cost potentiometric transducers.
 - 📐 **Tilt + vibration** from MPU6050 (gravity-vector tilt, complementary/Kalman-filtered; on-node RMS/peak/dominant-frequency feature extraction for vibration).
 - 🤖 **Three-layer explainable AI pipeline** — Isolation Forest (anomaly detection) → Random Forest (deformation-state classification) → XGBoost (short-horizon forecasting).
