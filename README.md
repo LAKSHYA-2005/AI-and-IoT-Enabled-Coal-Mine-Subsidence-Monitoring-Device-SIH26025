@@ -157,7 +157,7 @@ The risk engine — not the ML models directly — decides whether to escalate, 
 - SIM800L requires a 2G-capable SIM (Airtel/Vi/BSNL) — not compatible with Jio.
 - No OTA model deployment for this build; model updates are validated and flashed via USB.
 
-Full list with rationale: see §19 of the [Detailed Project Report](docs/SENSE-MINE_Detailed_Project_Report.docx).
+Full list with rationale: see §19 of the [Detailed Project Report](SENSE-MINE_Detailed_Project_Report.pdf).
 
 ---
 
