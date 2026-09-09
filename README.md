@@ -192,7 +192,7 @@ Future upgrades (independent geophone, GNSS-RTK, InSAR/SBAS integration, 4G/LTE 
 ---
 ## Team
 
-
+**Team-Nirvana**
 **Institution:** Guru Gobind Singh Indraprastha University, Delhi — University School of Automation & Robotics (USAR)
 **Institute Code (AISHE):** U-0099
 **Event:** Smart India Hackathon 2026 Nomination
