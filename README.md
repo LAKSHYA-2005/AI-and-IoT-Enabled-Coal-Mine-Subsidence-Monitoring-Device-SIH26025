@@ -70,7 +70,7 @@ The PS calls for: continuous tilt/relative-distance/crack/vibration monitoring, 
                              GIS                       AI / History
 ```
 
-Full block diagrams, firmware task pipeline, and calibration protocols are in the [Detailed Project Report](docs/SENSE-MINE_Detailed_Project_Report.docx).
+Full block diagrams, firmware task pipeline, and calibration protocols are in the [Detailed Project Report](SENSE-MINE_Detailed_Project_Report.pdf).
 
 ---
 
