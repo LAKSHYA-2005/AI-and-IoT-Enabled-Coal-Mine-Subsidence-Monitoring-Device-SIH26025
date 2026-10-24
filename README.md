@@ -306,4 +306,148 @@ SENSE-MINE/
    MPU6050 uses NO library - raw I2C register driver (clone chip).
    ============================================================ */
 
+
+   /* ============================================================
+   SENSE-MINE  |  COMMAND CENTRE — PHASE-1 PROTOTYPE FIRMWARE
+   Board   : ESP32 DevKitC / WROOM-32
+   Purpose : Receive each node's classification + raw features
+             over LoRa, and fan the data out over TWO INDEPENDENT
+             paths (neither one waits on the other):
+
+   DATA PATH (updated — supersedes the older "Node-RED owns
+   Firestore" comment from the previous revision of this file)
+   ----------------------------------------------------------
+   Sensor Node --LoRa--> Command Centre
+                             |
+                             +--USB Serial (JSON, always)--> Node-RED (local dashboard)
+                             |
+                             +--WiFi/HTTPS (best-effort)-----> Firestore directly --> Website
+
+   - The USB-Serial -> Node-RED path is UNCONDITIONAL. It never
+     waits on WiFi, Firestore auth, or anything network-related.
+     If WiFi/Firebase is down, this path is completely unaffected.
+   - The WiFi -> Firestore path is BEST-EFFORT. If there's no
+     WiFi, or Firebase auth hasn't completed yet, the push is
+     silently skipped (logged to Serial only) and the loop moves
+     on immediately — it never blocks LoRa reception.
+   - This is a genuine phase-1 prototype simplification vs. the
+     DPR's final architecture (FastAPI + PostgreSQL/TimescaleDB).
+     Firestore here plays the role that Postgres plays in the
+     final design. Swap it out later without touching the node
+     firmware or the LoRa protocol.
+
+   FIREBASE AUTH MODEL (Option B — dedicated device account)
+   ----------------------------------------------------------
+   This board signs in to Firebase Auth with a FIXED email/
+   password created just for it (not a real mailbox — just a
+   fixed identity string). Firestore rules then check
+   request.auth.token.email == that fixed address, so only this
+   board (or anything else holding those credentials) can write.
+   Anonymous website visitors get their own anonymous auth
+   session (see the frontend prompt) which has auth != null but
+   NO email claim, so the rule correctly lets them read but not
+   write. See the "Firestore rules" note delivered alongside this
+   file for the exact rules text to paste into the Firebase
+   console.
+
+   BEFORE FLASHING — create the device account once:
+     Firebase Console -> Authentication -> Sign-in method
+       -> enable "Email/Password"  AND  enable "Anonymous"
+     Firebase Console -> Authentication -> Users -> Add user
+       -> email:    (same as DEVICE_EMAIL below)
+       -> password: (same as DEVICE_PASSWORD below)
+
+   INVALID-READING HANDLING (the actual bug this revision fixes)
+   ----------------------------------------------------------
+   The node firmware can legitimately send NaN for a feature
+   (e.g. tilt_x/tilt_y when the MPU read fails, temperature_C
+   when the DS18B20 disconnects). Arduino's float printing turns
+   NaN into the literal text "nan", which is NOT valid JSON —
+   that is what was making Node-RED's JSON.parse() throw in
+   debug. Every numeric value this board emits (over BOTH the
+   USB path and the Firestore path) now goes through jsonNum(),
+   which converts NaN/Inf into a proper JSON `null` instead. A
+   top-level "data_quality" field ("OK" / "PARTIAL") is also
+   added so Node-RED/the website can flag a reading without the
+   parse itself ever failing.
+
+   FROZEN PIN MAP (unchanged from hardware-test build)
+   ----------------------------------------------------------
+   GPIO 18 : SPI SCK   - SX1278 LoRa (VSPI)
+   GPIO 19 : SPI MISO  - SX1278 LoRa (VSPI)
+   GPIO 23 : SPI MOSI  - SX1278 LoRa (VSPI)
+   GPIO 5  : SPI NSS   - SX1278 LoRa
+   GPIO 14 : LoRa RESET
+   GPIO 26 : LoRa DIO0
+   GPIO 21 : I2C SDA   - OLED
+   GPIO 22 : I2C SCL   - OLED
+
+   - WiFiClientSecure below uses setInsecure() (no certificate
+     pinning) to keep this phase-1 build simple. That's an
+     accepted, stated shortcut for the prototype — pin Google's
+     root CA (or use the ESP32 core's cert bundle) before this
+     goes anywhere near a real deployment.
+
+   LIBRARIES REQUIRED (Library Manager + built-in ESP32 core)
+   ----------------------------------------------------------
+   - LoRa by sandeepmistry
+   - Adafruit GFX Library
+   - Adafruit SSD1306
+   - WiFi, WiFiClientSecure, HTTPClient  (bundled with ESP32 core)
+   ============================================================ */
+
+#include <SPI.h>
+#include <LoRa.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <time.h>
+
+// ---------------- PIN MAP ----------------
+#define PIN_LORA_SCK   18
+#define PIN_LORA_MISO  19
+#define PIN_LORA_MOSI  23
+#define PIN_LORA_NSS   5
+#define PIN_LORA_RST   14
+#define PIN_LORA_DIO0  26
+
+#define PIN_I2C_SDA    21
+#define PIN_I2C_SCL    22
+
+#define LORA_FREQ      433E6
+
+// ======================================================================
+// TODO: EDIT THESE FOUR BLOCKS BEFORE FLASHING
+// ======================================================================
+// 1) Your WiFi (best-effort — the USB->Node-RED path works with none of this filled in)
+#define WIFI_SSID            "WIFI NAME HERE"
+#define WIFI_PASSWORD         "WIFI PASSWORD HERE"
+
+// 2) From your firebaseConfig (apiKey + projectId) — already filled in from what you shared
+#define FIREBASE_API_KEY     "FIREBASE_API_KEY"
+#define FIREBASE_PROJECT_ID  "FIREBASE_PROJECT_ID"
+
+// 3) The fixed device account you create once in the Firebase console (Option B)
+#define DEVICE_EMAIL         "Device Email "
+#define DEVICE_PASSWORD      "Device Password"
+
+// 4) GIS — no GPS hardware yet, so each node's install location is
+//    hardcoded here instead. IMPORTANT: this is set to the geographic
+//    centroid of the Pachhwara North coal block, Pakur District,
+//    Jharkhand (bounding box 24°32'12.771"N-24°33'53.683"N,
+//    87°25'18.208"E-87°29'55.417"E, centroid computed below) - a real,
+//    named Coal India-linked site, used here as a REFERENCE/TARGET
+//    deployment site for the demo narrative.
+//    This is NOT where the physical testbed actually sits (that's your
+//    lab/college). "location_source" and "site_label" below both say
+//    so explicitly, so nothing downstream - Node-RED, the website, or
+//    a jury member reading the raw Firestore data - can mistake this
+//    for a real GPS fix from hardware physically installed at
+//    Pachhwara North. If you ever want the pin to instead show where
+//    the testbed itself sits, swap in real coordinates for that and
+//    change location_source/site_label accordingly.
+
    
