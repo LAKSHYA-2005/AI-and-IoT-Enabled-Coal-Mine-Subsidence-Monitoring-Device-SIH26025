@@ -229,6 +229,6 @@ SENSE-MINE/
 ├── README.md
 ├── SENSE-MINE_Detailed_Project_Report
 ├── sennse_mine_command_centre_final003.ino   //Final Command Centre Code
-├── sennse_mine_command_centre_test.ino
-└── sennse_mine_node_test.ino
+├── sennse_mine_command_centre_test.ino       // Test Code 
+└── sennse_mine_node_test.ino                 // Test Code 
 ```
