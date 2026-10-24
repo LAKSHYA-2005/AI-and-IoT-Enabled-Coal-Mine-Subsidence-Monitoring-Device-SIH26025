@@ -213,3 +213,19 @@ Future upgrades (independent geophone, GNSS-RTK, InSAR/SBAS integration, 4G/LTE 
 **Mentor:** Dr. Khyati Chopra Assistant Professor GGSIPU, USAR
 
 **Problem Statement:** SIH26025 — Ministry of Coal / Coal India Limited
+
+## Folder Structure 
+
+    COMPLETE FILE/FOLDER STRUCTURE 
+    
+└── sennse_mine_node_final/
+    ├── sense_mine_node_final.ino                // FINAL NODE CODE 
+    ├── secrets.h
+    ├── model_rf_compact.cpp
+    ├── model_rf_compact.h
+    └── preprocessing_rf.h
+└── READEME.md
+└── SENSE-MINE_Detailed_Project_Report
+└── sennse_mine_command_centre_final003.ino       // FINAL COMMAND CENTRE CODE 
+└── sennse_mine_command_centre_test.ino
+└── sennse_mine_node_test.ino
