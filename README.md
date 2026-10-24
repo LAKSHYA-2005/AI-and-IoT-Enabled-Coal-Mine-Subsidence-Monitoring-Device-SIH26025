@@ -220,7 +220,7 @@ Future upgrades (independent geophone, GNSS-RTK, InSAR/SBAS integration, 4G/LTE 
 SENSE-MINE/
 │
 ├── sennse_mine_node_final/
-│   ├── sense_mine_node_final.ino
+│   ├── sense_mine_node_final.ino      //Final Sensor Node-code
 │   ├── secrets.h
 │   ├── model_rf_compact.cpp
 │   ├── model_rf_compact.h
@@ -228,7 +228,7 @@ SENSE-MINE/
 │
 ├── README.md
 ├── SENSE-MINE_Detailed_Project_Report
-├── sennse_mine_command_centre_final003.ino
+├── sennse_mine_command_centre_final003.ino   //Final Command Centre Code
 ├── sennse_mine_command_centre_test.ino
 └── sennse_mine_node_test.ino
 ```
