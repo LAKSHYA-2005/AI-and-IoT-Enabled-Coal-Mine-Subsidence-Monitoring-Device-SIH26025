@@ -216,16 +216,21 @@ Future upgrades (independent geophone, GNSS-RTK, InSAR/SBAS integration, 4G/LTE 
 
 ## Folder Structure 
 
-COMPLETE FILE/FOLDER STRUCTURE 
-    
-sennse_mine_node_final/
-       sense_mine_node_final.ino                
-       secrets.h
-       model_rf_compact.cpp
-       model_rf_compact.h
-       preprocessing_rf.h
-READEME.md
-SENSE-MINE_Detailed_Project_Report
-sennse_mine_command_centre_final003.ino       
-sennse_mine_command_centre_test.ino
-sennse_mine_node_test.ino
+SENSE-MINE/
+│
+├── sennse_mine_node_final/
+│   ├── sense_mine_node_final.ino
+│   ├── secrets.h
+│   ├── model_rf_compact.cpp
+│   ├── model_rf_compact.h
+│   └── preprocessing_rf.h
+│
+├── README.md
+│
+├── SENSE-MINE_Detailed_Project_Report
+│
+├── sennse_mine_command_centre_final003.ino
+│
+├── sennse_mine_command_centre_test.ino
+│
+└── sennse_mine_node_test.ino
