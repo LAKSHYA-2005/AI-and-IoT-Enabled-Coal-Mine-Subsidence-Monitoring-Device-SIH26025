@@ -232,3 +232,78 @@ SENSE-MINE/
 ├── sennse_mine_command_centre_test.ino       // Test Code 
 └── sennse_mine_node_test.ino                 // Test Code 
 ```
+
+## CURRENT VERSION 
+/* ============================================================
+   SENSE-MINE  |  SENSOR NODE — FINAL FIRMWARE (edge AI) fixed code not update it 
+   Board   : ESP32-S3-DevKitC-1
+   Purpose : Read all sensors, assemble the 23-feature vector,
+             run the on-device Random Forest, and transmit the
+             classification + raw features to the Command Centre
+             over LoRa. OLED shows live debug pages.
+   ============================================================
+
+   ARCHITECTURE DECISION (per your instructions):
+   - Single-node deployment for now. spatial_displacement_gradient
+     and spatial_coherence genuinely need >=2 nodes to compute -
+     with only one node, they are HARDCODED placeholders below.
+     Swap in the real multi-node calculation when you add nodes.
+   - Inference runs HERE, on the node (ESP32-S3), matching the
+     board the model was exported/sized for.
+
+   FROZEN PIN MAP (unchanged from hardware-test build)
+   ----------------------------------------------------------
+   GPIO 1  : ADC  - Crack-width potentiometer (wiper)
+   GPIO 2  : ADC  - Vertical-displacement potentiometer (wiper)
+   GPIO 4  : 1-Wire - DS18B20 temperature
+   GPIO 8  : I2C SDA - MPU6050 (clone) + OLED (shared bus)
+   GPIO 9  : I2C SCL - MPU6050 (clone) + OLED (shared bus)
+   GPIO 10 : SPI NSS  - SX1278 LoRa
+   GPIO 11 : SPI MOSI - SX1278 LoRa
+   GPIO 12 : SPI SCK  - SX1278 LoRa
+   GPIO 13 : SPI MISO - SX1278 LoRa
+   GPIO 14 : LoRa RESET
+   GPIO 15 : LoRa DIO0
+
+   FILES THAT MUST SIT IN THIS SAME SKETCH FOLDER
+   ----------------------------------------------------------
+   - model_rf_compact.cpp   <-- use the FIXED version I generated,
+                                 not your original export. Your
+                                 original file has ~36,889 malformed
+                                 float literals ("0f" instead of
+                                 "0.0f") from the export script,
+                                 which will not compile. The fixed
+                                 version only changes those literal
+                                 tokens - no structural/tree changes.
+   - model_rf_compact.h     <-- unchanged from your export
+   - preprocessing_rf.h     <-- FIXED version (same "0f" bug, one
+                                 instance, on the acceleration
+                                 feature's median value)
+
+   DO NOT add feature_config_compact.h to this sketch folder.
+   It declares its own `rf_compact::kClassNames`, which conflicts
+   with the one already defined in model_rf_compact.h/.cpp -
+   including both in the same build will not compile. This
+   firmware gets class names from model_rf_compact.h only, and
+   defines its own small local feature-name list (below) purely
+   for Serial debug printing.
+
+   ARDUINO IDE SETTINGS REQUIRED
+   ----------------------------------------------------------
+   The compact model is ~1MB of flash-resident data. In
+   Tools > Partition Scheme, pick a scheme with a large enough
+   app partition - e.g. "Huge APP (3MB No OTA/1MB SPIFFS)" - and
+   make sure your board variant actually has >=4MB flash (8MB/16MB
+   preferred). The default/minimal partition scheme WILL overflow.
+
+   LIBRARIES REQUIRED (Library Manager)
+   ----------------------------------------------------------
+   - LoRa by sandeepmistry
+   - OneWire
+   - DallasTemperature
+   - Adafruit GFX Library
+   - Adafruit SSD1306
+   MPU6050 uses NO library - raw I2C register driver (clone chip).
+   ============================================================ */
+
+   
