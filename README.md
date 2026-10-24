@@ -216,6 +216,7 @@ Future upgrades (independent geophone, GNSS-RTK, InSAR/SBAS integration, 4G/LTE 
 
 ## Folder Structure 
 
+```text
 SENSE-MINE/
 │
 ├── sennse_mine_node_final/
@@ -226,11 +227,8 @@ SENSE-MINE/
 │   └── preprocessing_rf.h
 │
 ├── README.md
-│
 ├── SENSE-MINE_Detailed_Project_Report
-│
 ├── sennse_mine_command_centre_final003.ino
-│
 ├── sennse_mine_command_centre_test.ino
-│
 └── sennse_mine_node_test.ino
+```
